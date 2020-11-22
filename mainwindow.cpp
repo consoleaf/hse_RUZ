@@ -9,6 +9,39 @@ MainWindow::MainWindow(QWidget *parent)
     manager = new QNetworkAccessManager();
     connect(ui->actionSettings, &QAction::triggered, this, &MainWindow::openSettings);
     connect(manager, &QNetworkAccessManager::finished, this, &MainWindow::processResponse);
+
+    closing = false;
+    connect(ui->actionExit, &QAction::triggered, this, [=]() {
+        closing = true;
+        close();
+    });
+
+    // Make system tray menu
+    auto trayIconMenu = new QMenu(this);
+    trayIconMenu->addAction(ui->actionExit);
+
+    sysTrayIcon = new QSystemTrayIcon;
+    sysTrayIcon->setContextMenu(trayIconMenu);
+    sysTrayIcon->setIcon(QIcon(":/icons/icon.ico"));
+    sysTrayIcon->show();
+
+    connect(sysTrayIcon, &QSystemTrayIcon::activated, this, [=](QSystemTrayIcon::ActivationReason reason)
+    {
+        if(reason == QSystemTrayIcon::Trigger)
+        {
+            if(isVisible())
+            {
+                hide();
+            }
+            else
+            {
+                refreshSchedule();
+                show();
+                activateWindow();
+            }
+        }
+    });
+
     this->redraw();
     this->refreshSchedule();
 }
@@ -16,6 +49,8 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+    delete sysTrayIcon;
+    delete manager;
 }
 
 void MainWindow::openSettings() {
@@ -42,6 +77,7 @@ void MainWindow::refreshSchedule() {
 void MainWindow::redraw() {
     username = settings.value("username").toString();
     userid = settings.value("userid").toString();
+    QString today = QDateTime::currentDateTime().toString("yyyy.MM.dd");
     ui->usernameLabel->setText(username);
 
     auto *layout = ui->scrollAreaWidgetContents->layout();
@@ -52,9 +88,15 @@ void MainWindow::redraw() {
 
     layout = new QVBoxLayout;
 
+    // clear the system tray menu
+    QMenu *trayMenu = sysTrayIcon->contextMenu();
+    trayMenu->clear();
+
     QString prevDate;
     for (auto itemref : schedule) {
         auto item = itemref.toObject();
+
+        // Add a date label if needed
         if (prevDate != item["date"].toString()) {
             if (prevDate != "") {
                 QFrame *line = new QFrame();
@@ -71,6 +113,7 @@ void MainWindow::redraw() {
             layout->addWidget(dateLabel);
         }
 
+        // Make a button in the window
         QCommandLinkButton *entry = new QCommandLinkButton;
         entry->setFlat(true);
         entry->setText(item["discipline"].toString());
@@ -86,7 +129,31 @@ void MainWindow::redraw() {
         }
 
         layout->addWidget(entry);
+
+        QString discipline = item["discipline"].toString();
+        if (discipline.length() > 15) {
+            discipline.truncate(15);
+            discipline.append("...");
+        }
+
+        // Make an entry in the system tray menu
+        if (prevDate == today) {
+            QAction *action = new QAction;
+            action->setText(item["beginLesson"].toString() + "-" +
+                    item["endLesson"].toString() + ". " + discipline);
+            if (!item["url1"].isNull() || !item["url2"].isNull()) {
+                QString url = (item["url1"].isNull() ? item["url2"] : item["url1"]).toString();
+                connect(action, &QAction::triggered, this, [=]() {
+                    QDesktopServices::openUrl(url);
+                });
+            } else {
+                action->setDisabled(true);
+            }
+            trayMenu->addAction(action);
+        }
     }
+
+    trayMenu->addAction(ui->actionExit);
 
     ui->scrollAreaWidgetContents->setLayout(layout);
 }
@@ -98,4 +165,18 @@ void MainWindow::processResponse(QNetworkReply *reply) {
     QJsonDocument document = QJsonDocument::fromJson(answer.toUtf8());
     schedule = document.array();
     redraw();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    if (closing)
+    {
+        event->accept();
+        exit(0);
+    }
+    else
+    {
+        this->hide();
+        event->ignore();
+    }
 }

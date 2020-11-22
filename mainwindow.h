@@ -16,6 +16,11 @@
 #include <QDebug>
 #include <QCommandLinkButton>
 #include <QDesktopServices>
+#include <QSystemTrayIcon>
+#include <QMenu>
+#include <QAction>
+#include <QMessageBox>
+#include <QCloseEvent>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -29,6 +34,9 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private:
     Ui::MainWindow *ui;
     QString userid;
@@ -37,6 +45,8 @@ private:
     QNetworkAccessManager *manager;
     QNetworkRequest request;
     QJsonArray schedule;
+    bool closing;
+    QSystemTrayIcon *sysTrayIcon;
 
 private slots:
     void openSettings();
