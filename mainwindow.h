@@ -21,6 +21,10 @@
 #include <QAction>
 #include <QMessageBox>
 #include <QCloseEvent>
+#include <QTimer>
+#include <QSet>
+#include <util.h>
+//#include <QLockFile>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -47,11 +51,18 @@ private:
     QJsonArray schedule;
     bool closing;
     QSystemTrayIcon *sysTrayIcon;
+    QTimer *refreshTimer;
+    QTimer *notificationTimer;
+    QMap<int, QSet<int>> notificationFlags;
+    QVector<NotificationSetting> notificationSettings;
+//    QLockFile lockFile;
 
 private slots:
     void openSettings();
     void redraw();
     void refreshSchedule();
     void processResponse(QNetworkReply *reply);
+    void checkClassesAndNotify();
 };
 #endif // MAINWINDOW_H
+

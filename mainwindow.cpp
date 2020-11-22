@@ -3,7 +3,8 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+    , ui(new Ui::MainWindow) //,
+//      sharedMemory("RUZ_schedule_app")
 {
     ui->setupUi(this);
     manager = new QNetworkAccessManager();
@@ -44,6 +45,21 @@ MainWindow::MainWindow(QWidget *parent)
 
     this->redraw();
     this->refreshSchedule();
+
+    // Initiate background tasks
+    refreshTimer = new QTimer(this);
+    notificationTimer = new QTimer(this);
+    connect(refreshTimer, &QTimer::timeout, this, &MainWindow::refreshSchedule);
+    connect(notificationTimer, &QTimer::timeout, this, &MainWindow::checkClassesAndNotify);
+    refreshTimer->start(5 * 60 * 1000);
+    notificationTimer->start(10 * 1000);
+//    refreshTimer->interval();
+//    notificationTimer->interval();
+
+    notificationSettings.append(NotificationSetting(10, "10 минут до пары!"));
+    notificationSettings.append(NotificationSetting(5, "5 минут до пары!"));
+    notificationSettings.append(NotificationSetting(5, "1 минута до пары!"));
+    notificationSettings.append(NotificationSetting(0, "Пара начинается!"));
 }
 
 MainWindow::~MainWindow()
@@ -105,7 +121,9 @@ void MainWindow::redraw() {
                 layout->addWidget(line);
             }
             prevDate = item["date"].toString();
-            QLabel *dateLabel = new QLabel(prevDate);
+            QLabel *dateLabel = new QLabel;
+            auto date = QDateTime::fromString(prevDate, "yyyy.MM.dd");
+            dateLabel->setText(date.toString("yyyy.MM.dd - dddd"));
             auto font = dateLabel->font();
             font.setBold(true);
             font.setPixelSize((int)(font.pixelSize() * 1.25));
@@ -154,7 +172,8 @@ void MainWindow::redraw() {
     }
 
     trayMenu->addAction(ui->actionExit);
-
+    auto verticalSpacer = new QSpacerItem(20, 40, QSizePolicy::Maximum, QSizePolicy::Expanding);
+    layout->addItem(verticalSpacer);
     ui->scrollAreaWidgetContents->setLayout(layout);
 }
 
@@ -178,5 +197,40 @@ void MainWindow::closeEvent(QCloseEvent *event)
     {
         this->hide();
         event->ignore();
+    }
+}
+
+void MainWindow::checkClassesAndNotify() {
+    QDateTime now = QDateTime::currentDateTime();
+    for (auto itemref : schedule) {
+        auto item = itemref.toObject();
+        if (now.toString("yyyy.MM.dd") == item["date"].toString()) {
+            auto beginTime = QTime::fromString(item["beginLesson"].toString(), "HH:mm");
+            auto timeLeft = now.time().secsTo(beginTime) / 60;
+            int oid = item["lessonOid"].toInt();
+
+            qDebug() << "Time left till " << item["discipline"].toString() << ": " << timeLeft << " minutes";
+
+            if (timeLeft < 0 || timeLeft > 10) {
+                notificationFlags.remove(oid);
+                continue; // No more processing if the class is not relevant
+            }
+
+            QString discipline = item["discipline"].toString();
+            if (discipline.length() > 30) {
+                discipline.truncate(30);
+                discipline.append("...");
+            }
+
+            for (auto setting : notificationSettings) {
+                if (timeLeft <= setting.timeLeft && !notificationFlags[oid].contains(setting.timeLeft)) {
+                    notificationFlags[oid].insert(setting.timeLeft);
+                    sysTrayIcon->showMessage(setting.notificationTitle,
+                                             QString("%1-%2: %3")
+                                             .arg(item["beginLesson"].toString(),
+                                             item["endLesson"].toString(), discipline));
+                }
+            }
+        }
     }
 }

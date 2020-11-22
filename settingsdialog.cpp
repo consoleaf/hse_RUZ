@@ -17,6 +17,9 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     disconnect(ui->lineEdit, &QLineEdit::returnPressed, ui->buttonBox, &QDialogButtonBox::accepted);
 
     ui->comboBox->addItem(settings.value("username").toString());
+    ui->lineEdit->setText(settings.value("username").toString());
+
+    on_refreshListButton_clicked();
 
     connect(manager, &QNetworkAccessManager::finished, this, [=](QNetworkReply *reply) {
         if (reply->error())
