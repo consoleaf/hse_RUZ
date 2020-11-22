@@ -51,10 +51,9 @@ MainWindow::MainWindow(QWidget *parent)
     notificationTimer = new QTimer(this);
     connect(refreshTimer, &QTimer::timeout, this, &MainWindow::refreshSchedule);
     connect(notificationTimer, &QTimer::timeout, this, &MainWindow::checkClassesAndNotify);
-    refreshTimer->start(5 * 60 * 1000);
-    notificationTimer->start(10 * 1000);
-//    refreshTimer->interval();
-//    notificationTimer->interval();
+
+    refreshTimer->start(5 * 60 * 1000); // 5 minutes
+    notificationTimer->start(10 * 1000); // 10 seconds
 
     notificationSettings.append(NotificationSetting(10, "10 минут до пары!"));
     notificationSettings.append(NotificationSetting(5, "5 минут до пары!"));
@@ -78,6 +77,7 @@ void MainWindow::openSettings() {
 
 void MainWindow::refreshSchedule() {
     // Get the schedule for TODAY and TOMORROW
+    qDebug() << "Refreshing schedule...";
     QUrl url;
     url.setUrl("https://ruz.hse.ru/api/schedule/student/" + settings.value("userid").toString());
     QUrlQuery query;
@@ -126,7 +126,7 @@ void MainWindow::redraw() {
             dateLabel->setText(date.toString("yyyy.MM.dd - dddd"));
             auto font = dateLabel->font();
             font.setBold(true);
-            font.setPixelSize((int)(font.pixelSize() * 1.25));
+//            font.setPixelSize((int)((double)font.pixelSize() * 1.25));
             dateLabel->setFont(font);
             layout->addWidget(dateLabel);
         }
